@@ -3,6 +3,17 @@
 本项目的所有显著变更都记录在此文件中。
 格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [0.1.1] - 2026-08-23
+
+### 新增
+
+- 监听地址落盘 `$DSH_HOME/openai-gateway/state.json`（host/port/pid/startedAt）：`port: 0` 随机端口场景与运维排查有了权威查询来源
+- 端口冲突（EADDRINUSE）优雅处理：记录明确的 FATAL 日志与处置指引，不再让进程崩溃
+
+### 变更
+
+- README 重写为完整教程：端口发现与冲突处理、Python SDK 接入示例、粘性会话完整示例、配置参考表、故障排查表
+
 ## [0.1.0] - 2026-08-23
 
 首个发布。
@@ -18,4 +29,5 @@
 - 单轮超时（默认 300s）：超时取消 Agent 并返回 504；流式期间客户端断开自动取消 Agent
 - 响应扩展字段 `dsh_session_id` / `dsh_tool_calls`；SSE 工具调用注释帧
 
+[0.1.1]: https://github.com/backrooms-yrc/dsh-openai-gateway/releases/tag/v0.1.1
 [0.1.0]: https://github.com/backrooms-yrc/dsh-openai-gateway/releases/tag/v0.1.0

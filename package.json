@@ -1,6 +1,6 @@
 {
   "name": "dsh-openai-gateway",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Expose DeepSeek Harness as an OpenAI-compatible API server: /v1/chat/completions (stream + non-stream) and /v1/models, each API call backed by a real agent session with tools and a workspace.",
   "type": "module",
   "main": "lib/index.js",
