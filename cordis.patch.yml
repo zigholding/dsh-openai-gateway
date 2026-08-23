@@ -1,0 +1,10 @@
+# Bundle patch for dsh-openai-gateway: inserts the OpenAI-compatible gateway
+# plugin into the roster. Override config from the profile/home patch layer:
+#   - id: openai-gateway
+#     config:
+#       host: 127.0.0.1
+#       port: 41540
+#       apiKeys: ['sk-...']
+- insert:
+  - id: openai-gateway
+    name: dsh-openai-gateway
