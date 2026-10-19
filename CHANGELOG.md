@@ -3,6 +3,27 @@
 本项目的所有显著变更都记录在此文件中。
 格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [0.1.3] - 2026-10-19
+
+### 新增
+
+- `GET /v1/dsh/sessions`：会话列表，每项含 `dsh_workspace`、`dsh_session`、`name`
+- 查询参数 `workspace` / `dsh_workspace` 按工作目录过滤（realpath；也可按已登记 Workspace 标题或目录 basename）
+- 查询参数 `name` / `name_regex` 按会话名称正则过滤
+- `POST|PATCH /v1/dsh/sessions/:id[/rename]`：重命名会话（body: `{ "name": "..." }`，亦接受 `title`）
+
+## [0.1.2] - 2026-10-19
+
+### 新增
+
+- 按请求指定工作目录：`X-DSH-Workspace` 头或 body 字段 `dsh_workspace`（绝对路径，支持 `~/...`）；未指定时仍用 `config.workspace.cwd`
+- 新建会话时若 cwd 对应已注册的 Web Workspace，自动 `attachSession`，侧栏归入该工作区而非「未分组」
+- 响应扩展字段 `dsh_cwd`：回显本回合实际工作目录（realpath）
+
+### 变更
+
+- 粘性会话续用时忽略请求里的 workspace 覆盖，保留创建时的 cwd
+
 ## [0.1.1] - 2026-08-23
 
 ### 新增
@@ -29,5 +50,7 @@
 - 单轮超时（默认 300s）：超时取消 Agent 并返回 504；流式期间客户端断开自动取消 Agent
 - 响应扩展字段 `dsh_session_id` / `dsh_tool_calls`；SSE 工具调用注释帧
 
+[0.1.3]: https://github.com/backrooms-yrc/dsh-openai-gateway/releases/tag/v0.1.3
+[0.1.2]: https://github.com/backrooms-yrc/dsh-openai-gateway/releases/tag/v0.1.2
 [0.1.1]: https://github.com/backrooms-yrc/dsh-openai-gateway/releases/tag/v0.1.1
 [0.1.0]: https://github.com/backrooms-yrc/dsh-openai-gateway/releases/tag/v0.1.0

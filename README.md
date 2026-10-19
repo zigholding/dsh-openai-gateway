@@ -4,7 +4,7 @@
 
 把 DeepSeek Harness 暴露为 OpenAI 兼容 API 服务端：每次 API 调用背后是带工具、带工作区的真实 Agent 会话。
 
-![Version](https://img.shields.io/badge/version-0.1.1-blue) ![dsh](https://img.shields.io/badge/dsh-0.1.1--rc.2-green) ![License](https://img.shields.io/badge/license-MIT-black)
+![Version](https://img.shields.io/badge/version-0.1.3-blue) ![dsh](https://img.shields.io/badge/dsh-0.1.1--rc.2-green) ![License](https://img.shields.io/badge/license-MIT-black)
 
 ## 工作原理
 
@@ -81,6 +81,32 @@ curl http://127.0.0.1:$PORT/v1/chat/completions \
 
 改完重启 dsh web 生效。
 
+## 工作目录
+
+Agent 的 cwd 决定工具读写/沙箱落点，也决定 Web UI 侧栏归属（cwd 与已登记 Workspace 的 `realpath` 一致时自动归入该组，否则落「未分组」）。
+
+**优先级**（新建会话时）：请求覆盖 > `config.workspace.cwd` > `$DSH_HOME/openai-gateway/workspace`。
+
+```yaml
+# profile 的 cordis.patch.yml — 全局默认
+- id: openai-gateway
+  config:
+    workspace:
+      cwd: /home/jushen1/Allgo/notebook/gitlab/celever-dog
+```
+
+```sh
+# 按请求覆盖（头或 body 均可；路径须绝对，支持 ~/...）
+curl http://127.0.0.1:$PORT/v1/chat/completions \
+  -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -H "X-DSH-Workspace: /home/jushen1/Allgo/notebook/gitlab/celever-dog" \
+  -d '{"model":"default","messages":[{"role":"user","content":"pwd"}]}'
+# 或 body: {"dsh_workspace":"/path/to/project", "model":"default", "messages":[...]}
+# → 响应里的 dsh_cwd 是实际 realpath
+```
+
+粘性会话续用时**忽略**请求里的 workspace 覆盖，保留创建时的 cwd。
+
 ## 会话模型
 
 - **无状态（默认）**：`messages` 全量拼为一条 prompt，回合结束即销毁会话，零残留。任何 OpenAI 客户端即插即用。
@@ -148,7 +174,44 @@ patch 层条目（`- id: openai-gateway` + `config:`），未写的键用默认�
 | `maxSessions` | `16` | 粘性会话簿记上限（LRU） |
 | `timeoutSeconds` | `300` | 单轮超时：取消 Agent 并返回 504 |
 | `defaultModel` | `''` | 请求未指定 model 时的兜底；空 = dsh 默认 |
-| `workspace.cwd` | `''` | Agent 工作目录；空 = `$DSH_HOME/openai-gateway/workspace` |
+| `workspace.cwd` | `''` | 默认 Agent 工作目录；空 = `$DSH_HOME/openai-gateway/workspace`；可被 `X-DSH-Workspace` / `dsh_workspace` 覆盖 |
+
+## 会话列表与重命名
+
+```sh
+# 列出全部有 cwd 的会话
+curl -H "Authorization: Bearer $KEY" "http://127.0.0.1:$PORT/v1/dsh/sessions"
+
+# 按工作区过滤（绝对路径 / Workspace 标题 / 目录 basename）
+curl -H "Authorization: Bearer $KEY" \
+  --get "http://127.0.0.1:$PORT/v1/dsh/sessions" \
+  --data-urlencode "dsh_workspace=/home/jushen1/Allgo/notebook/gitlab/celever-dog"
+
+# 名称正则（JavaScript RegExp）
+curl -H "Authorization: Bearer $KEY" \
+  --get "http://127.0.0.1:$PORT/v1/dsh/sessions" \
+  --data-urlencode "name=巡检|explore"
+
+# 重命名
+curl -X POST -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  "http://127.0.0.1:$PORT/v1/dsh/sessions/$SESSION_ID/rename" \
+  -d '{"name":"C4 巡检"}'
+```
+
+列表响应示例：
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "dsh_session": "openai-580f2438-2b17-4eae-b0b6-9d2dda2fe763",
+      "dsh_workspace": "/home/jushen1/Allgo/notebook/gitlab/celever-dog",
+      "name": "C4 巡检"
+    }
+  ]
+}
+```
 
 ## 端点
 
@@ -156,9 +219,11 @@ patch 层条目（`- id: openai-gateway` + `config:`），未写的键用默认�
 |---|---|---|
 | POST | `/v1/chat/completions` | 流式/非流式；`max_tokens` 映射单请求输出上限 |
 | GET | `/v1/models`、`/v1/models/:id` | 从 dsh 模型目录读取，模型名为 `provider/model` |
+| GET | `/v1/dsh/sessions` | 会话列表；`?dsh_workspace=` / `?name=` 过滤 |
+| POST/PATCH | `/v1/dsh/sessions/:id[/rename]` | 重命名；body `{ "name": "..." }` |
 | GET | `/healthz` | 免鉴权探活 |
 
-响应扩展字段（不破坏标准客户端）：`dsh_session_id`、`dsh_tool_calls`。工具调用在 SSE 中以注释帧 `: dsh tool-call <name>` 呈现。
+响应扩展字段（不破坏标准客户端）：`dsh_session_id`、`dsh_cwd`、`dsh_tool_calls`。工具调用在 SSE 中以注释帧 `: dsh tool-call <name>` 呈现。
 
 ## 反向代理（nginx，SSE 注意事项）
 
@@ -188,6 +253,10 @@ location ^~ /v1/ {
 | `404 model_not_found` | 模型名写错；`GET /v1/models` 看完整列表，或直接用 `default` |
 | 粘性会话 `404 session_not_found` | 会话 id 不对/已被回收，或 `sessionMode: stateless`；用 `X-DSH-Session: new` 重新创建 |
 | `504 timeout` | 单轮超过 `timeoutSeconds`（默认 300s）被取消；调大配置或精简任务 |
+| `400 invalid_workspace` | 路径相对/不存在/不是目录；改用绝对路径，或先在 Web UI 里把该目录登记为 Workspace |
+| `400 invalid_name_regex` | `name` / `name_regex` 不是合法 JS 正则 |
+| `400 invalid_title` | 重命名标题清洗后为空 |
+| 会话落在「未分组」 | cwd 与已登记 Workspace 的 realpath 不一致（symlink 两边写法不同也算）；对照 `dsh_cwd` 与 `~/.dsh/storages/workspace.json` |
 | 流式响应一次性全出 | 反代没关缓冲——nginx 加 `proxy_buffering off` |
 
 ## 已知限制（v0.1）
