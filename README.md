@@ -20,7 +20,7 @@ dsh 共享 Web 服务器的路由会被登录门插件（如 `@xgone/dsh-remote`
 ### 1. 安装插件
 
 ```sh
-dsh plugin --profile web add github:backrooms-yrc/dsh-openai-gateway#v0.1.1
+dsh plugin --profile web add github:zigholding/dsh-openai-gateway#v0.1.3
 ```
 
 ### 2. 重启 dsh web
@@ -268,7 +268,7 @@ location ^~ /v1/ {
 ## 本地开发
 
 ```sh
-git clone https://github.com/backrooms-yrc/dsh-openai-gateway
+git clone https://github.com/zigholding/dsh-openai-gateway
 dsh plugin --profile web add /path/to/dsh-openai-gateway
 ```
 

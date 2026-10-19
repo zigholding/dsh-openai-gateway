@@ -50,7 +50,7 @@
 - 单轮超时（默认 300s）：超时取消 Agent 并返回 504；流式期间客户端断开自动取消 Agent
 - 响应扩展字段 `dsh_session_id` / `dsh_tool_calls`；SSE 工具调用注释帧
 
-[0.1.3]: https://github.com/backrooms-yrc/dsh-openai-gateway/releases/tag/v0.1.3
-[0.1.2]: https://github.com/backrooms-yrc/dsh-openai-gateway/releases/tag/v0.1.2
-[0.1.1]: https://github.com/backrooms-yrc/dsh-openai-gateway/releases/tag/v0.1.1
-[0.1.0]: https://github.com/backrooms-yrc/dsh-openai-gateway/releases/tag/v0.1.0
+[0.1.3]: https://github.com/zigholding/dsh-openai-gateway/releases/tag/v0.1.3
+[0.1.2]: https://github.com/zigholding/dsh-openai-gateway/releases/tag/v0.1.2
+[0.1.1]: https://github.com/zigholding/dsh-openai-gateway/releases/tag/v0.1.1
+[0.1.0]: https://github.com/zigholding/dsh-openai-gateway/releases/tag/v0.1.0
