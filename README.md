@@ -4,7 +4,7 @@
 
 把 DeepSeek Harness 暴露为 OpenAI 兼容 API 服务端：每次 API 调用背后是带工具、带工作区的真实 Agent 会话。
 
-![Version](https://img.shields.io/badge/version-0.1.3-blue) ![dsh](https://img.shields.io/badge/dsh-0.1.1--rc.2-green) ![License](https://img.shields.io/badge/license-MIT-black)
+![Version](https://img.shields.io/badge/version-0.2.0-blue) ![dsh](https://img.shields.io/badge/dsh-0.1.1--rc.2-green) ![License](https://img.shields.io/badge/license-MIT-black)
 
 ## 工作原理
 
@@ -20,7 +20,7 @@ dsh 共享 Web 服务器的路由会被登录门插件（如 `@xgone/dsh-remote`
 ### 1. 安装插件
 
 ```sh
-dsh plugin --profile web add github:zigholding/dsh-openai-gateway#v0.1.3
+dsh plugin --profile web add github:zigholding/dsh-openai-gateway#v0.2.0
 ```
 
 ### 2. 重启 dsh web
@@ -107,6 +107,42 @@ curl http://127.0.0.1:$PORT/v1/chat/completions \
 
 粘性会话续用时**忽略**请求里的 workspace 覆盖，保留创建时的 cwd。
 
+## Agent / Permission Preset
+
+新建会话时可以指定 dsh 的 agent preset（工具/能力组合）与 permission preset（沙箱+审批档位），规则与 workspace 相同：
+
+**优先级**：请求覆盖 > 插件配置 `agentPreset` / `permissionPreset` > dsh 宿主默认。
+
+```sh
+# 先看看有哪些 preset
+curl -s -H "Authorization: Bearer $KEY" http://127.0.0.1:$PORT/v1/dsh/presets | python3 -m json.tool
+# {"object":"dsh.presets","agent":[{"id":"standard",...,"isDefault":true},...],
+#  "permission":[{"name":"workspace-write",...},...],"defaults":{...}}
+
+# 按请求指定（头或 body 均可；body 字段优先）
+curl -X POST http://127.0.0.1:$PORT/v1/chat/completions \
+  -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -H "X-DSH-Agent-Preset: cleverdog" \
+  -H "X-DSH-Permission-Preset: danger-full-access" \
+  -d '{"model":"default","messages":[{"role":"user","content":"你好"}]}'
+# 或 body: {"dsh_agent_preset":"cleverdog","dsh_permission_preset":"danger-full-access",...}
+# → 响应扩展字段 dsh_agent_preset / dsh_permission_preset 回显实际生效组合
+```
+
+```yaml
+# profile 的 cordis.patch.yml — 本网关新建会话的全局默认
+- id: openai-gateway
+  config:
+    agentPreset: cleverdog
+    permissionPreset: workspace-write
+```
+
+要点：
+
+- preset **只在本网关新建会话时生效**（`dsh_session: new` 或无状态模式）；续用粘性会话保留其创建时的组合，与 workspace 同规则
+- 未知名字报 `400 invalid_agent_preset`（错误消息附可用列表）/ `400 invalid_permission_preset`
+- agent preset 的挂载路径与 dsh 官方 webhook 完全一致（resolve → acquireScope → create + setup mount），插件作用域随 preset 走
+
 ## 会话模型
 
 - **无状态（默认）**：`messages` 全量拼为一条 prompt，回合结束即销毁会话，零残留。任何 OpenAI 客户端即插即用。
@@ -174,6 +210,8 @@ patch 层条目（`- id: openai-gateway` + `config:`），未写的键用默认�
 | `maxSessions` | `16` | 粘性会话簿记上限（LRU） |
 | `timeoutSeconds` | `300` | 单轮超时：取消 Agent 并返回 504 |
 | `defaultModel` | `''` | 请求未指定 model 时的兜底；空 = dsh 默认 |
+| `agentPreset` | `''` | 本网关新建会话的默认 agent preset；空 = dsh 宿主默认；可被 `X-DSH-Agent-Preset` / `dsh_agent_preset` 覆盖 |
+| `permissionPreset` | `''` | 同上，permission preset；可被 `X-DSH-Permission-Preset` / `dsh_permission_preset` 覆盖 |
 | `workspace.cwd` | `''` | 默认 Agent 工作目录；空 = `$DSH_HOME/openai-gateway/workspace`；可被 `X-DSH-Workspace` / `dsh_workspace` 覆盖 |
 
 ## 会话列表与重命名
@@ -207,7 +245,8 @@ curl -X POST -H "Authorization: Bearer $KEY" -H "Content-Type: application/json"
     {
       "dsh_session": "openai-580f2438-2b17-4eae-b0b6-9d2dda2fe763",
       "dsh_workspace": "/home/jushen1/Allgo/notebook/gitlab/celever-dog",
-      "name": "C4 巡检"
+      "name": "C4 巡检",
+      "agent_preset": "cleverdog"
     }
   ]
 }
@@ -219,11 +258,12 @@ curl -X POST -H "Authorization: Bearer $KEY" -H "Content-Type: application/json"
 |---|---|---|
 | POST | `/v1/chat/completions` | 流式/非流式；`max_tokens` 映射单请求输出上限 |
 | GET | `/v1/models`、`/v1/models/:id` | 从 dsh 模型目录读取，模型名为 `provider/model` |
-| GET | `/v1/dsh/sessions` | 会话列表；`?dsh_workspace=` / `?name=` 过滤 |
+| GET | `/v1/dsh/sessions` | 会话列表（含 `agent_preset`）；`?dsh_workspace=` / `?name=` 过滤 |
+| GET | `/v1/dsh/presets` | 可用 agent / permission preset 列表与生效默认 |
 | POST/PATCH | `/v1/dsh/sessions/:id[/rename]` | 重命名；body `{ "name": "..." }` |
 | GET | `/healthz` | 免鉴权探活 |
 
-响应扩展字段（不破坏标准客户端）：`dsh_session_id`、`dsh_cwd`、`dsh_tool_calls`。工具调用在 SSE 中以注释帧 `: dsh tool-call <name>` 呈现。
+响应扩展字段（不破坏标准客户端）：`dsh_session_id`、`dsh_cwd`、`dsh_tool_calls`、`dsh_agent_preset`、`dsh_permission_preset`。工具调用在 SSE 中以注释帧 `: dsh tool-call <name>` 呈现。
 
 ## 反向代理（nginx，SSE 注意事项）
 
@@ -254,6 +294,8 @@ location ^~ /v1/ {
 | 粘性会话 `404 session_not_found` | 会话 id 不对/已被回收，或 `sessionMode: stateless`；用 `X-DSH-Session: new` 重新创建 |
 | `504 timeout` | 单轮超过 `timeoutSeconds`（默认 300s）被取消；调大配置或精简任务 |
 | `400 invalid_workspace` | 路径相对/不存在/不是目录；改用绝对路径，或先在 Web UI 里把该目录登记为 Workspace |
+| `400 invalid_agent_preset` / `invalid_permission_preset` | preset 名字不存在或激活失败；`GET /v1/dsh/presets` 看可用列表（agent 错误消息也会附 available） |
+| `503 agent_preset_unavailable` | 宿主未挂载 `agentPresets` 服务（缺 preset 相关 bundle）；去掉 preset 参数走默认，或补齐 profile |
 | `400 invalid_name_regex` | `name` / `name_regex` 不是合法 JS 正则 |
 | `400 invalid_title` | 重命名标题清洗后为空 |
 | 会话落在「未分组」 | cwd 与已登记 Workspace 的 realpath 不一致（symlink 两边写法不同也算）；对照 `dsh_cwd` 与 `~/.dsh/storages/workspace.json` |

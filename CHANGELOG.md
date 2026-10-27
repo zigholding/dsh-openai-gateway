@@ -3,6 +3,19 @@
 本项目的所有显著变更都记录在此文件中。
 格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [0.2.0] - 2026-10-27
+
+### 新增
+
+- 新建会话可指定 agent preset 与 permission preset：请求头 `X-DSH-Agent-Preset` / `X-DSH-Permission-Preset`，或 body 字段 `dsh_agent_preset` / `dsh_permission_preset`
+- 插件配置 `agentPreset` / `permissionPreset` 作为本网关新建会话的默认；空则跟随 dsh 宿主
+- `GET /v1/dsh/presets`：列出可用 agent / permission preset 与生效默认
+- 响应扩展字段 `dsh_agent_preset`、`dsh_permission_preset`；会话列表增加 `agent_preset`
+
+### 变更
+
+- preset 只在新建会话时生效（`dsh_session: new` 或无状态模式）；粘性会话续用保留创建时的组合
+
 ## [0.1.3] - 2026-10-19
 
 ### 新增
@@ -54,6 +67,7 @@
 - 单轮超时（默认 300s）：超时取消 Agent 并返回 504；流式期间客户端断开自动取消 Agent
 - 响应扩展字段 `dsh_session_id` / `dsh_tool_calls`；SSE 工具调用注释帧
 
+[0.2.0]: https://github.com/zigholding/dsh-openai-gateway/releases/tag/v0.2.0
 [0.1.3]: https://github.com/zigholding/dsh-openai-gateway/releases/tag/v0.1.3
 [0.1.2]: https://github.com/zigholding/dsh-openai-gateway/releases/tag/v0.1.2
 [0.1.1]: https://github.com/zigholding/dsh-openai-gateway/releases/tag/v0.1.1
